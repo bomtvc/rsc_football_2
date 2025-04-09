@@ -365,7 +365,7 @@ with st.container():
         
         if st.session_state.spinning and st.session_state.available_positions:
             # Phát âm thanh khi quay
-            audio_url = "https://vongquaymayman.co/wp-content/themes/twentytwentythree-child/assets/sound/chiecnonkydieu.ogg"
+            audio_url = "https://tiengdong.com/wp-content/uploads/Am-thanh-vong-quay-chiec-non-ky-dieu-www_tiengdong_com.mp3?_=1"
             audio_placeholder.markdown(autoplay_audio(audio_url), unsafe_allow_html=True)
             
             with st.spinner(get_text('spinning')):
