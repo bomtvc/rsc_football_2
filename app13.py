@@ -19,7 +19,7 @@ if 'language' not in st.session_state:
 translations = {
     'title': {
         'vi': "🏆 BỐC THĂM BẢNG THI ĐẤU GIẢI BÓNG ĐÁ TRUYỀN THỐNG ROCHDALE SPEARS 🏆",
-        'en': "🏆 ROCHDALE SPEARS TRADITIONAL FOOTBALL TOURNAMENT GROUP DRAW 🏆"
+        'en': "🏆 OFFICIAL GROUP STAGE DRAW – ROCHDALE SPEARS TRADITIONAL FOOTBALL TOURNAMENT 🏆"
     },
     'draw_header': {
         'vi': "Bốc thăm bảng thi đấu",
