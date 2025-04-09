@@ -111,12 +111,43 @@ if 'result_table' not in st.session_state:
         'D': [None] * 5,  # 5 vị trí cho bảng D
     }
 
+# Thêm trạng thái cho bảng của HSSE-HR
+if 'hsse_hr_group' not in st.session_state:
+    st.session_state.hsse_hr_group = None
+
 # Danh sách 23 đội thi đấu
 all_teams = [
     "HSSE-HR", "ME", "QC 1", "RC - WOOD", "PACKING 1", "WH - MAINT", "PACKING 2", "FINISHING P1",
     "QC 2", "UPH 1", "UPH 2", "PROTOTYPE", "PANEL", "MACHINING P1", "INLAY", "ASSEMBLY P1",
     "ASSEMBLY P2", "MAC-PANEL P2", "WASHING - FITTING P2", "CARTLINE P2", "METAL WORK", "TECHNICAL FINISHING ", "OFFLINE P2"
 ]
+
+# Thêm dictionary rating cho các đội
+team_ratings = {
+    "HSSE-HR": 3,
+    "ME": 2,
+    "QC 1": 1,
+    "RC - WOOD": 1,
+    "PACKING 1": 1,
+    "WH - MAINT": 2,
+    "PACKING 2": 3,
+    "FINISHING P1": 2,
+    "QC 2": 3,
+    "UPH 1": 2,
+    "UPH 2": 4,
+    "PROTOTYPE": 5,
+    "PANEL": 2,
+    "MACHINING P1": 1,
+    "INLAY": 4,
+    "ASSEMBLY P1": 5,
+    "ASSEMBLY P2": 2,
+    "MAC-PANEL P2": 2,
+    "WASHING - FITTING P2": 3,
+    "CARTLINE P2": 5,
+    "METAL WORK": 6,
+    "TECHNICAL FINISHING ": 5,
+    "OFFLINE P2": 5
+}
 
 # Lọc các đội đã được bốc thăm
 if 'used_teams' not in st.session_state:
@@ -240,8 +271,8 @@ def create_wheel(positions, angle=0):
     
     return fig, labels_pos
 
-# Hàm xác định vị trí được chọn dựa trên góc quay
-def get_selected_position(labels_pos, angle):
+# Hàm xác định vị trí được chọn dựa trên góc quay - Đã sửa đổi để can thiệp kết quả
+def get_selected_position(labels_pos, angle, team=None):
     # Chuyển đổi góc quay sang radian
     angle_rad = np.radians(angle)
     
@@ -266,6 +297,28 @@ def get_selected_position(labels_pos, angle):
         if diff < min_diff:
             min_diff = diff
             selected_position = position
+    
+    # Nếu không có team được truyền vào hoặc chưa có HSSE-HR, trả về kết quả bình thường
+    if team is None or "HSSE-HR" not in st.session_state.used_teams:
+        return selected_position
+    
+    # Nếu đội đang bốc thăm là HSSE-HR, lưu lại bảng
+    if team == "HSSE-HR":
+        st.session_state.hsse_hr_group = selected_position[0]  # Lấy chữ cái đầu (A, B, C, D)
+        return selected_position
+    
+    # Nếu HSSE-HR đã được bốc thăm và vị trí được chọn nằm trong cùng bảng
+    if st.session_state.hsse_hr_group and selected_position[0] == st.session_state.hsse_hr_group:
+        # Kiểm tra rating của đội đang bốc thăm
+        rating = team_ratings.get(team, 3)  # Mặc định là 3 nếu không tìm thấy
+        
+        # Nếu là đội mạnh (rating 1-3), thử lại để tìm vị trí khác
+        if rating <= 3:
+            # Tìm các vị trí không nằm trong cùng bảng với HSSE-HR
+            other_positions = [pos for _, pos in labels_pos if pos[0] != st.session_state.hsse_hr_group]
+            if other_positions:
+                # Chọn ngẫu nhiên một vị trí khác
+                return random.choice(other_positions)
     
     return selected_position
 
@@ -647,8 +700,8 @@ with st.container():
                 # Lưu góc quay cuối cùng
                 st.session_state.wheel_angle = angles[-1] % 360
                 
-                # Xác định vị trí được chọn dựa trên góc quay cuối cùng
-                selected_position = get_selected_position(labels_pos, st.session_state.wheel_angle)
+                # Xác định vị trí được chọn dựa trên góc quay cuối cùng - Đã sửa đổi để can thiệp kết quả
+                selected_position = get_selected_position(labels_pos, st.session_state.wheel_angle, st.session_state.current_team)
                 
                 # Lưu kết quả
                 st.session_state.results[st.session_state.current_team] = selected_position
@@ -745,4 +798,4 @@ with st.container():
     <div style="text-align: center; margin-top: 30px; padding: 15px; background-color: #f8f9fa; border-radius: 10px;">
     <p style="color: #1a3a5f; font-weight: 500;">© 2025 Rochdale Spears Traditional Football Tournament</p>
     </div>
-    """, unsafe_allow_html=True)                    
+    """, unsafe_allow_html=True)
