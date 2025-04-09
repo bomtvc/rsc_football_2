@@ -111,9 +111,14 @@ if 'result_table' not in st.session_state:
         'D': [None] * 5,  # 5 vị trí cho bảng D
     }
 
-# Thêm trạng thái cho bảng của HSSE-HR
-if 'hsse_hr_group' not in st.session_state:
-    st.session_state.hsse_hr_group = None
+if 'group_ratings' not in st.session_state:
+    # Theo dõi đội mạnh trong mỗi bảng
+    st.session_state.group_ratings = {
+        'A': [],
+        'B': [],
+        'C': [],
+        'D': []
+    }
 
 # Danh sách 23 đội thi đấu
 all_teams = [
@@ -122,7 +127,7 @@ all_teams = [
     "ASSEMBLY P2", "MAC-PANEL P2", "WASHING - FITTING P2", "CARTLINE P2", "METAL WORK", "TECHNICAL FINISHING ", "OFFLINE P2"
 ]
 
-# Thêm dictionary rating cho các đội
+# Thêm rating của các đội
 team_ratings = {
     "HSSE-HR": 3,
     "ME": 2,
@@ -271,8 +276,8 @@ def create_wheel(positions, angle=0):
     
     return fig, labels_pos
 
-# Hàm xác định vị trí được chọn dựa trên góc quay - Đã sửa đổi để can thiệp kết quả
-def get_selected_position(labels_pos, angle, team=None):
+# Hàm xác định vị trí được chọn dựa trên góc quay
+def get_selected_position(labels_pos, angle):
     # Chuyển đổi góc quay sang radian
     angle_rad = np.radians(angle)
     
@@ -298,35 +303,55 @@ def get_selected_position(labels_pos, angle, team=None):
             min_diff = diff
             selected_position = position
     
-    # Nếu không có team được truyền vào hoặc chưa có HSSE-HR, trả về kết quả bình thường
-    if team is None or "HSSE-HR" not in st.session_state.used_teams:
-        return selected_position
-    
-    # Nếu đội đang bốc thăm là HSSE-HR, lưu lại bảng
-    if team == "HSSE-HR":
-        st.session_state.hsse_hr_group = selected_position[0]  # Lấy chữ cái đầu (A, B, C, D)
-        return selected_position
-    
-    # Nếu HSSE-HR đã được bốc thăm và vị trí được chọn nằm trong cùng bảng
-    if st.session_state.hsse_hr_group and selected_position[0] == st.session_state.hsse_hr_group:
-        # Kiểm tra rating của đội đang bốc thăm
-        rating = team_ratings.get(team, 3)  # Mặc định là 3 nếu không tìm thấy
-        
-        # Nếu là đội mạnh (rating 1-3), thử lại để tìm vị trí khác
-        if rating <= 3:
-            # Tìm các vị trí không nằm trong cùng bảng với HSSE-HR
-            other_positions = [pos for _, pos in labels_pos if pos[0] != st.session_state.hsse_hr_group]
-            if other_positions:
-                # Chọn ngẫu nhiên một vị trí khác
-                return random.choice(other_positions)
-    
     return selected_position
+
+# Hàm kiểm tra xem vị trí có phù hợp cho đội HSSE-HR không
+def is_suitable_position(position, team):
+    # Nếu không phải HSSE-HR, không cần kiểm tra đặc biệt
+    if team != "HSSE-HR":
+        return True
+    
+    group = position[0]  # Lấy chữ cái đầu (A, B, C, D)
+    
+    # Kiểm tra xem trong bảng đã có đội rating 1 chưa
+    for team_in_group in st.session_state.group_ratings.get(group, []):
+        if team_ratings.get(team_in_group, 0) == 1:
+            return False  # Không phù hợp nếu đã có đội rating 1 trong bảng
+    
+    return True
+
+# Hàm lấy vị trí phù hợp cho đội HSSE-HR
+def get_suitable_position(team):
+    if team != "HSSE-HR":
+        return None  # Không cần tìm vị trí đặc biệt
+    
+    # Tìm các bảng không có đội rating 1
+    suitable_groups = []
+    for group, teams in st.session_state.group_ratings.items():
+        has_strong_team = any(team_ratings.get(t, 0) == 1 for t in teams)
+        if not has_strong_team:
+            suitable_groups.append(group)
+    
+    if not suitable_groups:
+        return None  # Không có bảng phù hợp
+    
+    # Tìm các vị trí trong các bảng phù hợp
+    suitable_positions = [pos for pos in st.session_state.available_positions if pos[0] in suitable_groups]
+    
+    if suitable_positions:
+        return random.choice(suitable_positions)
+    
+    return None
 
 # Hàm cập nhật bảng kết quả
 def update_result_table(position, team):
     group = position[0]  # Lấy chữ cái đầu (A, B, C, D)
     index = int(position[1:]) - 1  # Lấy số (0-based index)
     st.session_state.result_table[group][index] = team
+    
+    # Cập nhật danh sách đội trong mỗi bảng
+    if group in st.session_state.group_ratings:
+        st.session_state.group_ratings[group].append(team)
 
 # Hàm tạo HTML để phát âm thanh
 def autoplay_audio(url):
@@ -654,12 +679,25 @@ with st.container():
                 total_spins = 10  # Số khung hình
                 spin_duration = 3  # Thời gian quay 3 giây
                 
+                # Xác định vị trí đích cho đội HSSE-HR (nếu cần)
+                target_position = None
+                if st.session_state.current_team == "HSSE-HR":
+                    target_position = get_suitable_position("HSSE-HR")
+                
                 n = len(st.session_state.available_positions)
                 segment_angle = 360 / n
                 
-                random_index = random.randint(0, n - 1)
-                target_angle = random_index * segment_angle + segment_angle / 2
-                target_angle += random.randint(15, 25) * 360  # Thêm nhiều vòng quay hơn
+                # Nếu là HSSE-HR và có vị trí phù hợp, đảm bảo kết quả là vị trí đó
+                if target_position:
+                    target_index = st.session_state.available_positions.index(target_position)
+                    target_angle = target_index * segment_angle + segment_angle / 2
+                else:
+                    # Nếu không phải HSSE-HR hoặc không tìm được vị trí phù hợp, chọn ngẫu nhiên
+                    random_index = random.randint(0, n - 1)
+                    target_angle = random_index * segment_angle + segment_angle / 2
+                
+                # Thêm nhiều vòng quay
+                target_angle += random.randint(15, 25) * 360
                 
                 angles = []
                 current_angle = st.session_state.wheel_angle
@@ -700,8 +738,12 @@ with st.container():
                 # Lưu góc quay cuối cùng
                 st.session_state.wheel_angle = angles[-1] % 360
                 
-                # Xác định vị trí được chọn dựa trên góc quay cuối cùng - Đã sửa đổi để can thiệp kết quả
-                selected_position = get_selected_position(labels_pos, st.session_state.wheel_angle, st.session_state.current_team)
+                # Xác định vị trí được chọn dựa trên góc quay cuối cùng
+                selected_position = get_selected_position(labels_pos, st.session_state.wheel_angle)
+                
+                # Nếu là HSSE-HR và có vị trí đích, đảm bảo kết quả là vị trí đó
+                if st.session_state.current_team == "HSSE-HR" and target_position:
+                    selected_position = target_position
                 
                 # Lưu kết quả
                 st.session_state.results[st.session_state.current_team] = selected_position
